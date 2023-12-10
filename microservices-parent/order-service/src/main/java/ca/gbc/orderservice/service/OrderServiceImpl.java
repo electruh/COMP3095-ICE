@@ -4,13 +4,16 @@ import ca.gbc.orderservice.dto.InventoryRequest;
 import ca.gbc.orderservice.dto.InventoryResponse;
 import ca.gbc.orderservice.dto.OrderLineItemDto;
 import ca.gbc.orderservice.dto.OrderRequest;
+import ca.gbc.orderservice.events.OrderPlacedEvent;
 import ca.gbc.orderservice.model.Order;
 import ca.gbc.orderservice.model.OrderLineItem;
 import ca.gbc.orderservice.repository.OrderRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -20,15 +23,19 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class OrderServiceImpl implements OrderService{
+
+public class OrderServiceImpl implements OrderService {
+
+//    private final KafkaTemplate<String, OrderPlacedEvent> kafkaTemplate;
+
     private final OrderRepository orderRepository;
-    private final WebClient webClient;
+    private final WebClient.Builder webClient;
 
     @Value("${inventory.service.url}")
     private String inventoryServiceUri;
 
     @Override
-    public void placeOrder(OrderRequest orderRequest) {
+    public String placeOrder(OrderRequest orderRequest) {
         Order order = new Order();
         order.setOrderNumber(UUID.randomUUID().toString());
 
@@ -49,6 +56,7 @@ public class OrderServiceImpl implements OrderService{
                         .toList();
 
        List<InventoryResponse> inventoryResponseList = webClient
+                .build()
                 .post()
                 .uri(inventoryServiceUri)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -65,6 +73,11 @@ public class OrderServiceImpl implements OrderService{
 
        if(Boolean.TRUE.equals(allProductsIsInStock)){
            orderRepository.save(order);
+
+//           kafkaTemplate.send("notificationTopic", new OrderPlacedEvent(order.getOrderNumber()));
+
+           return "Order Placed Successfully";
+
        }else {
            throw new RuntimeException("Not all products are in stock, order cannot be placed");
        }

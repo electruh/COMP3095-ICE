@@ -7,7 +7,7 @@
 # ----
 
 #Base image
-FROM gradle:8-jdk19 AS builder
+FROM gradle:8-jdk19-alpine AS builder
 
 #Copy the application files from the host machine to the image filesystem
 COPY --chown=gradle:gradle . /home/gradle/src

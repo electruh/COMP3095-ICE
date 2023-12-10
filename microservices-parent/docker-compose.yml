@@ -2,16 +2,55 @@ version: '3.8'
 
 services:
 
+  zipkin:
+    image: openzipkin/zipkin:latest
+    restart: unless-stopped
+    ports:
+      - "9411:9411"
+    container_name: zipkin
+    networks:
+      - spring
+
+  keycloak:
+    image: jboss/keycloak
+    ports:
+      - "8080:8080"
+    environment:
+      JBOSS_LOG_MANAGER_ROOT_LOGGER: DEBUG
+      DB_VENDOR: POSTGRES
+      DB_ADDR: postgres-keycloak
+      DB_DATABASE: keycloak
+      DB_USER: keycloak
+      DB_PASSWORD: password
+      KEYCLOAK_USER: admin
+      KEYCLOAK_PASSWORD: password
+      KEYCLOAK_IMPORT: /opt/jboss/keycloak/realms/spring-boot-microservices-realm.json
+    volumes:
+      - ./realms/:/opt/jboss/keycloak/realms
+    container_name: keycloak
+    depends_on:
+      - postgres-keycloak
+    restart: unless-stopped
+    networks:
+      - spring
+
   api-gateway:
     image: api-gateway
     ports:
       - "8181:8181"
+    expose:
+      - "8181"
     build:
       context: ./api-gateway
       dockerfile: ./Dockerfile
-    container_name: api-gateway #this will be the name of the actual container
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      eureka.client.service-url.defaultZone: http://discovery-service:8761/eureka/
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY: DEBUG
+    container_name: api-gateway
+    depends_on:
+      - discovery-service
+    restart: unless-stopped
     networks:
       - spring
 
@@ -22,7 +61,7 @@ services:
     build:
       context: ./discovery-service
       dockerfile: ./Dockerfile
-    container_name: discovery-service #this will be the name of the actual container
+    container_name: discovery-service
     environment:
       SPRING_PROFILES_ACTIVE: docker
     networks:
@@ -70,6 +109,22 @@ services:
       SPRING_PROFILES_ACTIVE: docker
     depends_on:
       - mongodb
+    networks:
+      - spring
+
+  postgres-keycloak:
+    container_name: postgres-keycloak
+    image: postgres
+    environment:
+      - POSTGRES_DB=keycloak
+      - POSTGRES_USER=keycloak
+      - POSTGRES_PASSWORD=password
+      - PGDATA=data/postgres
+    volumes:
+      - ./data/postgres/postgres-keycloak:/data/postgres
+    ports:
+      - "5431:5432"
+    restart: unless-stopped
     networks:
       - spring
 
